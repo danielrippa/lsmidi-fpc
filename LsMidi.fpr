@@ -1,0 +1,107 @@
+program LsMidi;
+
+{$mode delphi}
+
+uses Windows, MMSystem, SysUtils;
+
+type
+  TInfoLine = array of String;
+
+procedure WriteInfoLine(InfoLine: TInfoLine);
+var
+  Index: Integer;
+  Separator: String;
+begin
+  for Index := 0 to High(InfoLine) do begin
+    if Index > 0 then Separator := '|' else Separator := '';
+    Write(Separator);
+    Write(InfoLine[Index]);
+  end;
+  WriteLn;
+end;
+
+function DriverVersionToStr(Version: MMVERSION): String;
+var
+  Major, Minor: Integer;
+begin
+  Major := Version shr 8;
+  Minor := Version and $FF;
+
+  Result := Format('%d.%d', [Major, Minor]);
+end;
+
+function TechnologyToStr(wTechnology: DWORD): String;
+begin
+  case wTechnology of
+
+    MOD_MIDIPORT: Result := 'MIDI HW Port';
+    MOD_SYNTH: Result := 'Synthesizer';
+    MOD_SQSYNTH: Result := 'Square Wave Synthesizer';
+    MOD_FMSYNTH: Result := 'FM Synthesizer';
+    MOD_MAPPER: Result := 'Microsoft MIDI Mapper';
+    MOD_WAVETABLE: Result := 'Hardware WaveTable Synthesizer';
+    MOD_SWSYNTH: Result := 'Software Synthesizer';
+
+    else
+      Result := 'Unknown';
+  end;
+end;
+
+function ChannelsToStr(wChannelMask: WORD): String;
+var
+  Index: Integer;
+begin
+  Result := '';
+
+  for Index := 0 to 15 do begin
+    if (wChannelMask and (1 shl Index)) <> 0 then begin
+
+      if Result <> '' then begin
+        Result := Result + ',';
+      end;
+
+      Result := Result + IntToStr(Index + 1);
+    end;
+  end;
+end;
+
+function SupportToStr(aFlag: Integer): String;
+begin
+  if aFlag = 0 then begin
+    Result := 'Yes';
+  end else begin
+    Result := 'No';
+  end;
+end;
+
+function GetDeviceInfoLine(dwDeviceID: DWORD): TInfoLine;
+var
+  Caps: TMIDIOUTCAPS;
+begin
+  SetLength(Result, 13);
+  if MidiOutGetDevCaps(dwDeviceID, @Caps, SizeOf(Caps)) = 0 then begin
+    Result[00] := IntToStr(dwDeviceID);
+    Result[01] := Caps.szPName;
+    Result[02] := IntToStr(Caps.wMid);
+    Result[03] := IntToStr(Caps.wPid);
+    Result[04] := DriverVersionToStr(Caps.vDriverVersion);
+    Result[05] := TechnologyToStr(Caps.wTechnology);
+    Result[06] := IntToStr(Caps.wVoices);
+    Result[07] := IntToStr(Caps.wNotes);
+    Result[08] := ChannelsToStr(Caps.wChannelMask);
+
+    Result[09] := SupportToStr(Caps.dwSupport and MIDICAPS_VOLUME);
+    Result[10] := SupportToStr(Caps.dwSupport and MIDICAPS_LRVOLUME);
+    Result[11] := SupportToStr(Caps.dwSupport and MIDICAPS_CACHE);
+    Result[12] := SupportToStr(Caps.dwSupport and MIDICAPS_STREAM);
+  end;
+end;
+
+var
+  Index: Integer;
+begin
+  WriteInfoLine(['DeviceID', 'Name', 'ManufacturerID', 'ProductID', 'Version', 'Technology', '# Voices', '# Notes', 'Channels', 'Volume Control', 'Patch and Note caching', 'Stream Messages']);
+  for Index := 0 to MidiOutGetNumDevs - 1 do begin
+    WriteInfoLine(GetDeviceInfoLine(Index));
+  end;
+end.
